@@ -2,15 +2,20 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_chatapp/widgets/chat_message.dart';
 
 class ChatPage extends StatefulWidget {
   @override
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   final _textCtrl = TextEditingController();
   final _focusNode = new FocusNode();
+
+  List<ChatMessage> _messages = [];
+
+  bool _estaEscribiendo = false;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,88 +49,94 @@ class _ChatPageState extends State<ChatPage> {
             child: ListView.builder(
               physics: BouncingScrollPhysics(),
               reverse: true,
-              itemBuilder: (_, i) => Text('$i'),
+              itemCount: _messages.length,
+              itemBuilder: (_, i) => _messages[i],
             ),
           ),
           Divider(height: 1),
           Container(
             color: Colors.white,
-            child: InputChat(textController: _textCtrl, focusNode: _focusNode),
+            child: _inputChat(),
           )
         ]),
       ),
     );
   }
-}
 
-class InputChat extends StatefulWidget {
-  final TextEditingController textController;
-  final FocusNode focusNode;
-
-  const InputChat({super.key, required this.textController, required this.focusNode});
-
-  @override
-  State<InputChat> createState() => _InputChatState(textController, focusNode);
-}
-
-class _InputChatState extends State<InputChat> {
-  final TextEditingController textController;
-  final FocusNode focusNode;
-  bool _estaEscribiendo = false;
-
-  _InputChatState(this.textController, this.focusNode);
-  @override
-  Widget build(BuildContext context) {
+  Widget _inputChat() {
     return SafeArea(
-      child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 8.0, vertical: 5),
-        child: Row(children: [
+        child: Container(
+      margin: EdgeInsets.symmetric(horizontal: 8.0),
+      child: Row(
+        children: <Widget>[
           Flexible(
-            child: TextField(
-              controller: textController,
-              onSubmitted: _handleSubmit,
-              onChanged: (String texto) {
-                //TODO cuando hay un valor, para poder postear
-                setState(() {
-                  _estaEscribiendo = texto.trim().length > 0;
-                });
-              },
-              decoration: InputDecoration.collapsed(hintText: 'Enviar mensaje'),
-              focusNode: focusNode,
-            ),
-          ),
+              child: TextField(
+            controller: _textCtrl,
+            onSubmitted: _handleSubmit,
+            onChanged: (texto) {
+              setState(() {
+                if (texto.trim().length > 0) {
+                  _estaEscribiendo = true;
+                } else {
+                  _estaEscribiendo = false;
+                }
+              });
+            },
+            decoration: InputDecoration.collapsed(hintText: 'Enviar mensaje'),
+            focusNode: _focusNode,
+          )),
+
+          // Botón de enviar
           Container(
             margin: EdgeInsets.symmetric(horizontal: 4.0),
             child: Platform.isIOS
-                ? CupertinoButton(child: Text('Enviar'), onPressed: () {})
+                ? CupertinoButton(
+                    child: Text('Enviar'),
+                    onPressed: _estaEscribiendo ? () => _handleSubmit(_textCtrl.text.trim()) : null,
+                  )
                 : Container(
                     margin: EdgeInsets.symmetric(horizontal: 4.0),
                     child: IconTheme(
-                      data: IconThemeData(color: _estaEscribiendo ? Colors.blue[400] : null),
+                      data: IconThemeData(color: Colors.blue[400]),
                       child: IconButton(
                         highlightColor: Colors.transparent,
                         splashColor: Colors.transparent,
-                        icon: Icon(
-                          Icons.send,
-                        ),
-                        onPressed: _estaEscribiendo ? () => _handleSubmit(textController.text.trim()) : null,
+                        icon: Icon(Icons.send),
+                        onPressed: _estaEscribiendo ? () => _handleSubmit(_textCtrl.text.trim()) : null,
                       ),
                     ),
                   ),
           )
-        ]),
+        ],
       ),
-    );
+    ));
   }
 
   _handleSubmit(String texto) {
     if (texto.length > 0) {
       print(texto);
-      textController.clear();
-      focusNode.requestFocus();
+      _textCtrl.clear();
+      _focusNode.requestFocus();
+
+      final newMessage = ChatMessage(
+        texto: texto,
+        uuid: '123',
+        animationController: AnimationController(vsync: this, duration: Duration(milliseconds: 400)),
+      );
+      _messages.insert(0, newMessage);
+      newMessage.animationController.forward();
       setState(() {
         _estaEscribiendo = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    //TODO: Off del socket
+    for (ChatMessage message in _messages) {
+      message.animationController.dispose();
+    }
+    super.dispose();
   }
 }
